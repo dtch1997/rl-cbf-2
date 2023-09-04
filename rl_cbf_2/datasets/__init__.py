@@ -29,7 +29,6 @@ def concatenate_datasets(datasets: typing.List[Dataset]) -> Dataset:
     combined_dataset = {}
     for _dataset in datasets:
         for key, value in _dataset.items():
-            print(key, value.shape)
             if key not in combined_dataset:
                 combined_dataset[key] = value
             else:
@@ -53,3 +52,15 @@ def get_dataset(dataset_name) -> Dataset:
     
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
+    
+
+def get_environment(dataset_name) -> "gymnasium.Environment":
+    """Load a Gymnasium environment compatible with a given dataset."""
+
+    if dataset_name in D4RL_DATASETS:
+        return d4rl.get_environment(dataset_name)
+
+    # custom dataset
+    elif is_custom_dataset(dataset_name):
+        dataset_names = parse_compound_dataset_name(dataset_name)
+        return d4rl.get_environment(dataset_names[0])
