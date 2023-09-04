@@ -896,6 +896,10 @@ def train(_):
         trainer.load_state_dict(torch.load(policy_file))
         actor = trainer.actor
 
+    if config.dry_run:
+        print("Dry run, exiting")
+        return
+
     wandb_init(config)
 
     evaluations = []

@@ -68,3 +68,17 @@ class TrainConfig:
         self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
         if self.checkpoints_path is not None:
             self.checkpoints_path = os.path.join(self.checkpoints_path, self.name)
+
+
+def get_sweep(h):
+    del h
+    sweep = []
+    for seed in [0, 1, 2]:
+        for env_type in ("walker2d", "hopper", "ant"):
+            for dataset_type in ("mixed", ):
+                sweep.append(
+                    {
+                        "config.seed": seed,
+                    }
+                )
+    return sweep
