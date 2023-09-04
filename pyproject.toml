@@ -21,6 +21,8 @@ dependencies = [
     "wandb",
     "tensorboard",
     "d4rl_slim[all] @ git+https://github.com/dtch1997/d4rl-slim.git",
+    "torch",
+    "pyrallis"
 ]
 
 [project.urls]
