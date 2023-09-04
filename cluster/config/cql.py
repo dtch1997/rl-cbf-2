@@ -64,6 +64,9 @@ class TrainConfig:
     group: str = "CQL-D4RL"
     name: str = "CQL"
 
+    # RL-CBF
+    relabel_type: str = "zero_one"
+
     def __post_init__(self):
         self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
         if self.checkpoints_path is not None:

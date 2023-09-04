@@ -3,6 +3,8 @@ import typing
 import numpy as np
 import logging
 
+from rl_cbf_2.datasets.safety_conditions import get_safety_condition
+
 D4RL_DATASETS = d4rl.list_datasets()
 
 Dataset = typing.Dict[str, typing.Any]
@@ -53,6 +55,17 @@ def get_dataset(dataset_name) -> Dataset:
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
     
+def relabel_dataset(dataset: Dataset, relabel_type: str, safety_fn) -> Dataset:
+    """Relabel a dataset with a given safety function."""
+    from rl_cbf_2.datasets.safety_reward import ZeroOneRewarder, IdentityRewarder
+    if relabel_type == "identity":
+        rewarder = IdentityRewarder(safety_fn)
+    if relabel_type == "zero_one":
+        rewarder = ZeroOneRewarder(safety_fn)
+    else:
+        raise ValueError(f"Unknown relabel type: {relabel_type}")
+    dataset["rewards"] = rewarder.modify_reward(dataset["observations"], dataset["rewards"])
+    return dataset    
 
 def get_environment(dataset_name) -> "gymnasium.Environment":
     """Load a Gymnasium environment compatible with a given dataset."""
@@ -64,3 +77,12 @@ def get_environment(dataset_name) -> "gymnasium.Environment":
     elif is_custom_dataset(dataset_name):
         dataset_names = parse_compound_dataset_name(dataset_name)
         return d4rl.get_environment(dataset_names[0])
+    
+def get_normalized_score(dataset_name, score):
+    if dataset_name in D4RL_DATASETS:
+        return d4rl.get_normalized_score(dataset_name, score)
+    
+    # custom dataset
+    elif is_custom_dataset(dataset_name):
+        dataset_names = parse_compound_dataset_name(dataset_name)
+        return d4rl.get_normalized_score(dataset_names[0], score)

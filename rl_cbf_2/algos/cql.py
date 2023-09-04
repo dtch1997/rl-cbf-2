@@ -793,6 +793,10 @@ def train(_):
 
     dataset = d4rl.qlearning_dataset(env, _dataset)
 
+    # Construct safety-relabelled dataset
+    safety_fn = datasets.get_safety_condition(config.env)
+    dataset = datasets.relabel_dataset(dataset, config.relabel_type, safety_fn)
+
     if config.normalize_reward:
         modify_reward(
             dataset,
@@ -919,7 +923,7 @@ def train(_):
                 seed=config.seed,
             )
             eval_score = eval_scores.mean()
-            normalized_eval_score = d4rl.get_normalized_score(config.env, eval_score) * 100.0
+            normalized_eval_score = datasets.get_normalized_score(config.env, eval_score) * 100.0
             evaluations.append(normalized_eval_score)
             print("---------------------------------------")
             print(
