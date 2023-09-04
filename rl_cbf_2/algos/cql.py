@@ -896,7 +896,7 @@ def train(_):
         trainer.load_state_dict(torch.load(policy_file))
         actor = trainer.actor
 
-    wandb_init(asdict(config))
+    wandb_init(config)
 
     evaluations = []
     for t in range(int(config.max_timesteps)):
