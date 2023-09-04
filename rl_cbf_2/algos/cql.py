@@ -782,6 +782,102 @@ class ContinuousCQL:
         )
         self.total_it = state_dict["total_it"]
 
+@torch.no_grad()
+def eval_cbf(
+    env: gym.Env, actor, critic1, critic2, device: str, n_episodes: int, seed: int, render = False, safety_threshold: float = 0.5
+) -> Dict[str, np.ndarray]:
+    # TODO: evaluate the CBF for off-policy safety constraints
+    # Evaluate: Safety-constrained episode length
+    # Evaluate: Safety success rate
+    pass
+
+    actor.eval()
+    
+    safety_threshold = safety_threshold / (1 - 0.99)
+    episode_rewards = []
+    episode_lengths = []
+    values = []
+    safety_pred_accuracies = []
+    exploratory_action_counts = []
+    for _ in range(n_episodes):
+
+        # Reset env
+        state, _ = env.reset()
+        done = False
+        episode_reward = 0.0
+        episode_length = 0
+        n_exploratory_actions = 0
+        safety_pred = 1
+
+        # Initialize episode buffer
+        episode_state_buffer = np.zeros((1001, env.observation_space.shape[0]))
+        episode_action_buffer = np.zeros((1000, env.action_space.shape[0]))
+        episode_state_buffer[0] = state
+
+        while not done:
+            # Select random action
+            action = env.action_space.sample()
+
+            # Apply safety constraint;
+            state_th = torch.from_numpy(state).float().to(device).view(1, -1)
+            random_action_th = torch.from_numpy(action).float().to(device).view(1, -1)
+            learned_action_th = actor(state_th)[0]
+            q_value_random_q1 = critic1(state_th, random_action_th)
+            q_value_random_q2 = critic2(state_th, random_action_th)
+            q_value_random = min(q_value_random_q1, q_value_random_q2)
+            q_value_learned_q1 = critic1(state_th, learned_action_th)
+            q_value_learned_q2 = critic2(state_th, learned_action_th)
+            q_value_learned = min(q_value_learned_q1, q_value_learned_q2)
+            # print("Q values: random {}, learned {}".format(q_value_random, q_value_learned))
+            if q_value_random < safety_threshold:
+                # Unsafe; take action that maximizes Q-value
+                action = actor.act(state, device)
+            else: 
+                n_exploratory_actions += 1
+            if q_value_learned < safety_threshold:
+                # We have entered an unsafe state
+                safety_pred = 0
+
+            # Step the environment
+            state, reward, terminated, truncated, info = env.step(action)
+            done = np.logical_or(terminated, truncated)
+            if render: env.render()
+
+            # Record data
+            values.append(q_value_learned.item())
+            episode_reward += reward
+            episode_length += 1
+            episode_state_buffer[episode_length] = state
+            episode_action_buffer[episode_length - 1] = action
+
+        if safety_pred == 1 and episode_length < 1000:
+            # Predicted safe, but episode terminated early
+            safety_pred_accuracies.append(0)
+        elif safety_pred == 0 and episode_length == 1000:
+            # Predicted unsafe, but episode did not terminate early
+            safety_pred_accuracies.append(0)
+        else:
+            # Predicted correctly
+            safety_pred_accuracies.append(1)
+
+        episode_rewards.append(episode_reward)
+        episode_lengths.append(episode_length)
+        episode_state_buffer = episode_state_buffer[: episode_length + 1]
+        episode_action_buffer = episode_action_buffer[:episode_length]
+        exploratory_action_counts.append(n_exploratory_actions)
+
+    episode_safety_successes = np.asarray(episode_lengths) == 1000
+    actor.train()
+    critic1.train()
+    critic2.train()
+
+    return {
+        "episode_lengths": np.mean(episode_lengths),
+        "episode_safety_successes": np.mean(episode_safety_successes),
+        "value_mean": np.mean(values),
+        # "safety_pred_accuracy": np.mean(safety_pred_accuracies),
+        "explore_fraction": np.sum(exploratory_action_counts) / np.sum(episode_lengths),
+    }
 
 def train(_):
     config = _CONFIG.value
@@ -923,7 +1019,10 @@ def train(_):
                 seed=config.seed,
             )
             eval_score = eval_scores.mean()
+            eval_log = {}
+
             normalized_eval_score = datasets.get_normalized_score(config.env, eval_score) * 100.0
+            eval_log["eval/d4rl_normalized_score"] = normalized_eval_score
             evaluations.append(normalized_eval_score)
             print("---------------------------------------")
             print(
@@ -931,15 +1030,28 @@ def train(_):
                 f"{eval_score:.3f} , D4RL score: {normalized_eval_score:.3f}"
             )
             print("---------------------------------------")
+
+            # Evaluate CBF
+            eval_metrics = eval_cbf(
+                env, 
+                actor, 
+                critic_1,
+                critic_2,
+                device=config.device,
+                n_episodes=config.n_episodes,
+                seed=config.seed,
+            )
+            for k, v in eval_metrics.items():
+                eval_log[f"eval_cbf/{k}"] = v
+
+
             if config.checkpoints_path:
                 torch.save(
                     trainer.state_dict(),
                     os.path.join(config.checkpoints_path, f"checkpoint_{t}.pt"),
                 )
-            wandb.log(
-                {"d4rl_normalized_score": normalized_eval_score},
-                step=trainer.total_it,
-            )
+                
+            wandb.log(eval_log, step=trainer.total_it)
 
 
 if __name__ == "__main__":
