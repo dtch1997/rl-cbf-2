@@ -60,18 +60,18 @@ class TrainConfig:
     policy_log_std_multiplier: float = 1.0
 
     # Wandb logging
-    project: str = "CORL"
-    group: str = "CQL-D4RL"
+    project: str = "rl-cbf-2"
+    group: str = "d4rl-slim"
     name: str = "CQL"
 
     # RL-CBF
     relabel_type: str = "zero_one"
+    bounded: bool = True
 
     def __post_init__(self):
         self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
         if self.checkpoints_path is not None:
             self.checkpoints_path = os.path.join(self.checkpoints_path, self.name)
-
 
 def get_sweep(h):
     del h

@@ -26,6 +26,8 @@ from ml_collections import config_flags
 from rl_cbf_2 import datasets
 
 _CONFIG = config_flags.DEFINE_config_file('config')
+# TODO: set this from config
+DISCOUNT = 0.99
 
 def soft_update(target: nn.Module, source: nn.Module, tau: float):
     for target_param, source_param in zip(target.parameters(), source.parameters()):
@@ -340,6 +342,7 @@ class FullyConnectedQFunction(nn.Module):
         action_dim: int,
         orthogonal_init: bool = False,
         n_hidden_layers: int = 3,
+        bounded: bool = True,
     ):
         super().__init__()
         self.observation_dim = observation_dim
@@ -356,6 +359,7 @@ class FullyConnectedQFunction(nn.Module):
         layers.append(nn.Linear(256, 1))
 
         self.network = nn.Sequential(*layers)
+        self.bounded = bounded
 
         init_module_weights(self.network, orthogonal_init)
 
@@ -372,6 +376,8 @@ class FullyConnectedQFunction(nn.Module):
         q_values = torch.squeeze(self.network(input_tensor), dim=-1)
         if multiple_actions:
             q_values = q_values.reshape(batch_size, -1)
+        if self.bounded:
+            q_values = torch.sigmoid(q_values) / (1 - DISCOUNT)
         return q_values
 
 
@@ -793,7 +799,7 @@ def eval_cbf(
 
     actor.eval()
     
-    safety_threshold = safety_threshold / (1 - 0.99)
+    safety_threshold = safety_threshold / (1 - DISCOUNT)
     episode_rewards = []
     episode_lengths = []
     values = []
@@ -808,6 +814,7 @@ def eval_cbf(
         episode_length = 0
         n_exploratory_actions = 0
         safety_pred = 1
+        prev_q_value_learned = None
 
         # Initialize episode buffer
         episode_state_buffer = np.zeros((1001, env.observation_space.shape[0]))
@@ -834,9 +841,15 @@ def eval_cbf(
                 action = actor.act(state, device)
             else: 
                 n_exploratory_actions += 1
-            if q_value_learned < safety_threshold:
-                # We have entered an unsafe state
-                safety_pred = 0
+
+            # Use online safety filter
+            if prev_q_value_learned is not None:
+                # Check CBF condition
+                alpha = 0.1
+                if q_value_learned < (1 - alpha) * prev_q_value_learned:
+                    # CBF condition violated
+                    # Conservatively assume unsafe
+                    safety_pred = 0
 
             # Step the environment
             state, reward, terminated, truncated, info = env.step(action)
