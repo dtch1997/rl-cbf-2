@@ -158,19 +158,26 @@ def eval_actor(
 ) -> np.ndarray:
     actor.eval()
     episode_rewards = []
+    episode_lengths = []
     for _ in range(n_episodes):
         state, _ = env.reset()
         done = False
         episode_reward = 0.0
+        episode_length = 0
         while not done:
             action = actor.act(state, device)
             state, reward, terminated, truncated, _ = env.step(action)
             done = np.logical_or(terminated, truncated)
             episode_reward += reward
+            episode_length += 1
         episode_rewards.append(episode_reward)
+        episode_lengths.append(episode_length)
 
     actor.train()
-    return np.asarray(episode_rewards)
+    return {
+        'episode_rewards': np.asarray(episode_rewards),
+        'episode_lengths': np.asarray(episode_lengths)
+    }
 
 
 def return_reward_range(dataset: Dict, max_episode_steps: int) -> Tuple[float, float]:
@@ -1032,18 +1039,19 @@ def train(_):
         # Evaluate episode
         if (t + 1) % config.eval_freq == 0:
             print(f"Time steps: {t + 1}")
-            eval_scores = eval_actor(
+            eval_log = {}
+            eval_actor_metrics = eval_actor(
                 env,
                 actor,
                 device=config.device,
                 n_episodes=config.n_episodes,
                 seed=config.seed,
             )
-            eval_score = eval_scores.mean()
-            eval_log = {}
-
+            eval_score = eval_actor_metrics["episode_rewards"].mean()
             normalized_eval_score = datasets.get_normalized_score(config.env, eval_score) * 100.0
             eval_log["eval/d4rl_normalized_score"] = normalized_eval_score
+            eval_log["eval/episode_rewards"] = eval_actor_metrics["episode_rewards"].mean()
+            eval_log["eval/episode_lengths"] = eval_actor_metrics["episode_lengths"].mean()
             evaluations.append(normalized_eval_score)
             print("---------------------------------------")
             print(
