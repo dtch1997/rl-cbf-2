@@ -82,6 +82,7 @@ def get_sweep(h):
                 sweep.append(
                     {
                         "config.seed": seed,
+                        "config.env": f"{env_type}-{dataset_type}-v2",
                     }
                 )
     return sweep
