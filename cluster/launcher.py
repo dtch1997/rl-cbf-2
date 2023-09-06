@@ -24,6 +24,7 @@ _WANDB_PROJECT = flags.DEFINE_string("wandb_project", "rl_cbf_2", "wandb project
 _WANDB_ENTITY = flags.DEFINE_string("wandb_entity", "dtch1997", "wandb user")
 _WANDB_GROUP = flags.DEFINE_string("wandb_group", "{xid}_{name}", "wandb group")
 _WANDB_MODE = flags.DEFINE_string("wandb_mode", "online", "wandb mode")
+_DRY_RUN = flags.DEFINE_bool("dry_run", False, "Dry run")
 config_flags.DEFINE_config_file("config", None, "Path to config")
 flags.mark_flags_as_required(["config"])
 
@@ -71,18 +72,25 @@ def _get_hyper():
 
 
 def main(_):
+    print("Config filename: ", config_flags.get_config_filename(FLAGS["config"]))
     with xm_cluster.create_experiment(experiment_title="hpo") as experiment:
         exp_name = _EXP_NAME.value
         if exp_name is None:
             exp_name = _ENTRYPOINT.value.split(".")[-1]
 
+        dry_run = _DRY_RUN.value
         requirements = xm_cluster.JobRequirements(ram=16 * xm.GB, gpu=1)
+        walltime = 20 * xm.Hr
+        if dry_run:
+            requirements = xm_cluster.JobRequirements(ram=8 * xm.GB)
+            walltime = 10 * xm.Min
+
         if not _LAUNCH_ON_CLUSTER.value:
             executor = xm_cluster.Local(requirements)
         else:
             executor = ucl.UclGridEngine(
                 requirements=requirements,
-                walltime=20 * xm.Hr,
+                walltime=walltime,
             )
 
         env_vars = {
