@@ -22,7 +22,7 @@ class TrainConfig:
     eval_freq: int = int(5e3)  # How often (time steps) we evaluate
     n_episodes: int = 10  # How many episodes run during evaluation
     max_timesteps: int = int(1e6)  # Max time steps to run environment
-    checkpoints_path: Optional[str] = None  # Save path
+    checkpoints_path: Optional[str] = "models"  # Save path
     load_model: str = ""  # Model load file name, "" doesn't load
     dry_run: bool = False
 
@@ -67,8 +67,3 @@ class TrainConfig:
     # RL-CBF
     relabel_type: str = "zero_one"
     bounded: bool = True
-
-    def __post_init__(self):
-        self.name = f"{self.name}-{self.env}-{str(uuid.uuid4())[:8]}"
-        if self.checkpoints_path is not None:
-            self.checkpoints_path = os.path.join(self.checkpoints_path, self.name)

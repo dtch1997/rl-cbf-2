@@ -894,6 +894,13 @@ def eval_cbf(
 
 def train(_):
     config = _CONFIG.value
+    print(config)
+
+    # Manually generate the name
+    config.name = f"{config.name}-{config.env}-{str(uuid.uuid4())[:8]}"
+    if config.checkpoints_path is not None:
+        config.checkpoints_path = os.path.join(config.checkpoints_path, config.name)
+
     env = datasets.get_environment(config.env)
     _dataset = datasets.get_dataset(config.env)
 
@@ -1009,11 +1016,11 @@ def train(_):
         trainer.load_state_dict(torch.load(policy_file))
         actor = trainer.actor
 
+    wandb_init(config.to_dict())
+
     if config.dry_run:
         print("Dry run, exiting")
         return
-
-    wandb_init(config)
 
     evaluations = []
     for t in range(int(config.max_timesteps)):
