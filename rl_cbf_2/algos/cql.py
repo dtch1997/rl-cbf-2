@@ -3,6 +3,7 @@
 import os
 import random
 import uuid
+import yaml
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -947,7 +948,7 @@ def train(_):
         print(f"Checkpoints path: {config.checkpoints_path}")
         os.makedirs(config.checkpoints_path, exist_ok=True)
         with open(os.path.join(config.checkpoints_path, "config.yaml"), "w") as f:
-            pyrallis.dump(config, f)
+            yaml.dump(config.to_yaml(), f)
 
     # Set seeds
     seed = config.seed

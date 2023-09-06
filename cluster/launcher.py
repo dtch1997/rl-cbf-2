@@ -20,6 +20,7 @@ _IMAGE = flags.DEFINE_string(
     "image", os.environ.get("LXM_SINGULARITY_IMAGE"), "Path to container image."
 )
 _EXP_NAME = flags.DEFINE_string("exp_name", None, "Name of experiment")
+_LOGDIR = flags.DEFINE_string("logdir", None, "Path to log directory.")
 _WANDB_PROJECT = flags.DEFINE_string("wandb_project", "rl_cbf_2", "wandb project")
 _WANDB_ENTITY = flags.DEFINE_string("wandb_entity", "dtch1997", "wandb user")
 _WANDB_GROUP = flags.DEFINE_string("wandb_group", "{xid}_{name}", "wandb group")
@@ -85,6 +86,8 @@ def main(_):
             requirements = xm_cluster.JobRequirements(ram=8 * xm.GB)
             walltime = 10 * xm.Min
 
+        logdir = _LOGDIR.value or os.environ.get("LXM_LOCAL_LOG_DIR", None)
+
         if not _LAUNCH_ON_CLUSTER.value:
             executor = xm_cluster.Local(requirements)
         else:
@@ -121,6 +124,9 @@ def main(_):
         )
 
         async def make_job(work_unit: xm.WorkUnit, **args):
+            args["config.checkpoints_path"] = os.path.join(
+                logdir, str(work_unit.experiment_id), str(work_unit.work_unit_id)
+            )
             job = xm.Job(
                 executable,
                 executor,
