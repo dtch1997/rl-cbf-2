@@ -58,6 +58,17 @@ cov = [
   "cov-report",
 ]
 
+# Setup plots env
+[tool.hatch.envs.plots]
+dependencies = [
+  "matplotlib",
+  "seaborn",
+  "pandas", 
+  "numpy",
+  "jupyter",
+  "notebook"
+]
+
 # Setup compile env
 [tool.hatch.envs.compile]
 dependencies=[
