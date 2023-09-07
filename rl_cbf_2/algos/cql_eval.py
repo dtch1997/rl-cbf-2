@@ -1,11 +1,9 @@
 from absl import app
-from absl import flags
-from ml_collections import config_flags
 
 from rl_cbf_2.algos.cql import *
 from rl_cbf_2.algos.cql import _CONFIG
 
-def eval(_):
+def load_model(config):
     config = _CONFIG.value
     env = datasets.get_environment(config.env)
     _dataset = datasets.get_dataset(config.env)
@@ -41,12 +39,6 @@ def eval(_):
     env = wrap_env(env, state_mean=state_mean, state_std=state_std)
 
     max_action = float(env.action_space.high[0])
-
-    if config.checkpoints_path is not None:
-        print(f"Checkpoints path: {config.checkpoints_path}")
-        os.makedirs(config.checkpoints_path, exist_ok=True)
-        with open(os.path.join(config.checkpoints_path, "config.yaml"), "w") as f:
-            pyrallis.dump(config, f)
 
     # Set seeds
     seed = config.seed
@@ -111,18 +103,21 @@ def eval(_):
         trainer.load_state_dict(torch.load(policy_file))
         actor = trainer.actor
 
-    if config.dry_run:
-        print("Dry run, exiting")
-        return
+    return env, actor, critic_1, critic_2
+
+def eval(_):
+    config = _CONFIG.value
+    env, actor, critic_1, critic_2 = load_model(config)
 
     # Evaluate episode
-    eval_scores = eval_actor(
+    eval_actor_metrics = eval_actor(
         env,
         actor,
         device=config.device,
         n_episodes=config.n_episodes,
         seed=config.seed,
     )
+    eval_scores = eval_actor_metrics["episode_rewards"]
     eval_score = eval_scores.mean()
     eval_log = {}
 
@@ -136,18 +131,20 @@ def eval(_):
     print("---------------------------------------")
 
     # Evaluate CBF
-    eval_metrics = eval_cbf(
-        env, 
-        actor, 
-        critic_1,
-        critic_2,
-        device=config.device,
-        n_episodes=config.n_episodes,
-        seed=config.seed,
-    )
-    for k, v in eval_metrics.items():
-        eval_log[f"eval_cbf/{k}"] = v
-    print(eval_log)
+
+    for safety_threshold in [0.0, 0.1, 0.2, 0.3, 0.5, 0.8, 1.0]:
+        print("Safety threshold: ", safety_threshold)
+        eval_metrics = eval_cbf(
+            env, 
+            actor, 
+            critic_1,
+            critic_2,
+            device=config.device,
+            n_episodes=config.n_episodes,
+            seed=config.seed,
+            safety_threshold=safety_threshold,
+        )
+        print(eval_metrics)
 
 
 if __name__ == "__main__":
